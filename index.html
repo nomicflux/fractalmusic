@@ -1,0 +1,223 @@
+<!DOCTYPE HTML>
+<html>
+<head><title>Bohlen-Pierce Fractal Music</title>
+  <script type="text/javascript" src="underscore.js"></script>
+<script type="text/javascript" src="music.js"></script>
+<script type="text/javascript" src="fractalseed.js"></script>
+<script type="text/javascript" src="webaudio_tools.js"></script>
+<script type="text/javascript" src="jquery-2.1.1.js"></script>
+</head>
+<body>
+<script type="text/javascript">
+ var timeChunk = 300;
+ var startTime = 1000;
+ var gap = 25;
+ var mode = 0;
+
+ var oscillator = [];
+ var amp = [];
+
+ var violinamp = [1,1/2,1/3,1/4,1/5,1/6];
+ var violinfreq = [1,2,3,4,5,6];
+
+ var clarinetamp = [1, .75, .5, .14, .5, .12, .17];
+ var clarinetfreq = [1, 3,5,7,8,11,13];
+
+ var sineamp = [1];
+ var sinefreq = [1];
+
+ var ampchanges = clarinetamp;
+ var freqchanges = clarinetfreq;
+ var harmonics = freqchanges.length;
+
+ var timeouts = [];
+
+ function initAudio() {
+   if( audioContext ) {
+     for(var i = 0; i < harmonics; i++) {
+       oscillator.push(audioContext.createOscillator());
+       fixOscillator(oscillator[i]);
+
+       amp.push(audioContext.createGain());
+       amp[i].gain.value = 0;
+    
+       oscillator[i].connect(amp[i]);
+       amp[i].connect(audioContext.destination);
+       oscillator[i].start(0);
+     }
+   }
+ }
+
+ var lookup = ['C', 'D', 'E', 'F', 'G', 'H', 'J', 'A', 'B'];
+
+ function startTone( note, tritave ) {
+   var frequency = music.freq(note, tritave, mode);
+
+   var mult = 1;
+   frequency *= mult;
+   var now = audioContext.currentTime;
+    
+   for(var i=0; i < harmonics; i++) {
+     amp[i].gain.cancelScheduledValues(now);
+     oscillator[i].frequency.setValueAtTime(freqchanges[i]*frequency, now);
+     amp[i].gain.setValueAtTime(ampchanges[i]*amp[i].gain.value, now);
+     amp[i].gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.1);
+   }
+
+/*   var b = frequency / 261.6 / mult;
+   var l = Math.round(Math.log(b) / Math.log(3) * 13);
+   var m = posMod(l, music.numNotes);
+   var tritave = quot(l -m , music.numNotes);
+   $("#pattern").html("<p>"+lookup[m]+", Tritave " + tritave + "</p>"); */
+}
+
+function stopTone()
+{
+  var now = audioContext.currentTime; 
+  for(var i = 0; i < harmonics; i++) {
+    amp[i].gain.cancelScheduledValues(now);
+    amp[i].gain.setValueAtTime(amp[i].gain.value, now);
+    amp[i].gain.linearRampToValueAtTime(0.0, audioContext.currentTime + 1.0);
+  }
+}
+
+function playSong(notes, time) {
+  var paused = true;
+
+  for(var i=0; i < notes.length; i++) {
+    var currTime = Date.now() - time;
+    if(!paused) { timeouts.push(setTimeout('stopTone()', startTime - currTime + i*timeChunk - gap)); }
+    var freq = music.freq(notes[i], mode);
+    if(freq > 1) {
+      timeouts.push(
+	setTimeout('startTone(' + notes[i].note + ', ' + notes[i].tritave + ')', 
+		   startTime - currTime + i*timeChunk));
+      paused = false;
+    } else {
+      paused = true;
+    }
+  } 
+  timeouts.push(setTimeout('clearSong()', startTime + notes.length*timeChunk));
+}
+
+function clearSong() {
+  for(var i=0; i<timeouts.length; i++) {
+    clearTimeout(timeouts[i]);
+  }
+  timeouts = [];
+  stopTone();
+}
+
+$(document).ready(function() {
+  initAudio();
+  $("#startMusic").click(function() {
+    clearSong();
+
+    var depth = parseInt($("#depth").val());
+    var minsize = parseInt($("#minsize").val());
+    var maxsize = parseInt($("#maxsize").val());
+    mode = parseInt($("#mode").val());
+
+    var song = fractal.fractalSong(depth,
+				   1, 
+				   minsize,
+				   maxsize);
+    var notes = song.song;
+
+    var song2 = fractal.fractalSong(depth,
+				    1, 
+				    minsize,
+				    maxsize);
+    var notes2 = song2.song;
+//    var pattern = song.pattern;
+
+//    $("#pattern").html(fractal.printPattern(pattern));
+
+    var time = Date.now();
+    playSong(notes, time);
+//    playSong(notes2, time);
+  });
+ 8
+  $("#stopMusic").click(function() {
+    clearSong();
+  });
+
+  $("#changeMode").click(function() {
+    mode = parseInt($("#mode").val());
+  });
+
+  $("#changeInstrument").click(function() {
+    var prefix = $("#instrument").val();
+    ampchanges = eval(prefix + "amp");
+    freqchanges = eval(prefix + "freq");
+    harmonics = freqchanges.length;
+  });
+
+ });
+
+
+</script>
+<div>
+  <span>
+<label for="depth">Fractal Depth:</label><input type="number" name="depth" id="depth" value="6" /><br />
+<label for="minsize">Minimum Breadth:</label><input type="number" name="minsize" id="minsize" value="2" /><br />
+<label for="maxsize">Maximum Breadth:</label><input type="number" name="maxsize" id="maxsize" value="4" /><br />
+<label for="mode">Mode:</label>
+<select name="mode" id="mode">
+  <option value="0" selected>Lambda</option>
+  <option value="1">Walker A</option>
+  <option value="2">Moll II (Pierce)</option>
+  <option value="3">Walker I</option>
+  <option value="4">Harmonic</option>
+  <option value="5">Walker II</option>
+  <option value="6">Dur I</option>
+  <option value="7">Mol I (Delta)</option>
+  <option value="8">Walker B</option>
+  <option value="9">Dur II</option>
+  <option value="10">Gamma</option>
+</select><input type="button" value="Change Mode" id="changeMode" /><br />
+<select name="instrument" id="instrument">
+  <option value="clarinet" selected>Clarinet</option>
+  <option value="violin">Violin</option>
+  <option value="sine">Sine Wave</option>
+</select><input type="button" value="Change Instrument" id="changeInstrument" /><br />
+<input type="button" value="Generate Music" id="startMusic" />
+<input type="button" value="Stop Music" id="stopMusic" /><br />
+  </span>
+  <span id="pattern">
+    
+  </span>
+</div>
+<hr />
+<p>Here's how it works: for each note in the scale, the computer generates a random replacement.  So, for example, it might make the rules:
+  <ul>
+    <li>G => B A</li>
+    <li>A => C C G</li>
+    <li>B => A G</li>
+    <li>C => B C</li>
+  </ul>
+  The number of notes in the replacement are determined by "minimum breadth" and "maximum breadth."</p>
+<p>The computer will then apply those rules several times in a row.  Using the previous example:
+  <table style="text-align: center;">
+    <tr><td colspan="9">C</td></tr>
+    <tr><td colspan="5">B</td><td colspan="4">C</td></tr>
+    <tr><td colspan="3">A</td><td colspan="2">G</td><td colspan="2">B</td><td colspan="2">C</td></tr>
+    <tr><td>C</td><td>C</td><td>G</td><td>B</td><td>A</td><td>A</td><td>G</td><td>B</td><td>C</td></tr>
+  </table>
+  This will happen to the "depth" specified.
+</p>
+<p>Finally, you can choose the mode for the music. The scales are based off of the Bohlen-Pierce scale (info here: <a href="http://www.ziaspace.com/elaine/BP/Modes_and_Chords.html" target="_blank">http://www.ziaspace.com/elaine/BP/Modes_and_Chords.html</a>).  The modes are approximate and meant for fiddling with, but may not match up with the tune: it has no control over where the tune starts or any notes that it hovers around, just the key signature.</p>
+<p>In order to not lock up your browser, keep numbers reasonable.  Breadths between 2 and 4, and depths of 5-10, should keep things usable (A breadth of 2 and depth of 10 will make 1024 notes, a minimum breadth of 2 with maximum of 4 and a depth of 8 will make on average 59049 notes - things really escalate quickly).
+<p>If the site doesn't create music right away, click the button again - still working out the bugs.  I've tested it in the latest version of Firefox, and Chrome is supposed to work well with the sound files.</p>
+<p>To-do list:
+  <ul>
+    <li>Visualizations!</li>
+    <li><strike>Fix the stupid clicking sound between beats</strike> (solution: use Chrome.  Sorry, web audio still sucks.)</li>
+    <li>Chords, counterpoints</li>
+    <li><strike>Makes modes changeable mid-song, to hear the differences better</strike></li>
+    <li>Add section on cellular automata music</li>
+    <li>Long-term: keep track of which patterns people like, and use AI to adjust to produce better music</li>
+  </ul>
+</p>
+</body>
+</html>
