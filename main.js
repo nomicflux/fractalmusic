@@ -10,7 +10,7 @@
  var violinfreq = [1,2,3,4,5,6];
 
  var clarinetamp = [1, .75, .5, .14, .5, .12, .17];
- var clarinetfreq = [1, 3,5,7,8,11,13];
+ var clarinetfreq = [1,3,5,7,8,11,13];
 
  var sineamp = [1];
  var sinefreq = [1];
@@ -100,6 +100,7 @@ function clearSong() {
 $(document).ready(function() {
   initAudio();
   $("#startMusic").click(function() {
+    if (audioContext.state === "suspended") { audioContext.resume(); }
     clearSong();
 
     var depth = parseInt($("#depth").val());
@@ -126,7 +127,7 @@ $(document).ready(function() {
     playSong(notes, time);
 //    playSong(notes2, time);
   });
- 8
+
   $("#stopMusic").click(function() {
     clearSong();
   });
